@@ -1,0 +1,51 @@
+# 플랫폼 설정
+platform :ios, '13.0' # iOS 최소 버전 설정
+use_frameworks! # 모듈형 프레임워크 사용 (Firebase에 필수)
+
+# CocoaPods 분석 비활성화 (빌드 시간 최적화)
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+# Flutter 루트 경로 설정
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+# Flutter iOS 기본 설정
+flutter_ios_podfile_setup
+
+# 'Runner' 타겟 정의
+target 'Runner' do
+  use_frameworks! # Firebase 통합을 위해 필요
+  use_modular_headers! # (선택 사항, 충돌 없을 경우 유지)
+
+  # Flutter 의존성 설치
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  # Firebase 의존성 추가
+  pod 'Firebase/Core' # Firebase 기본 패키지
+  pod 'Firebase/Auth' # Firebase 인증
+  pod 'Firebase/Firestore' # Firebase Firestore (필요 시)
+  
+  # 테스트 타겟 (선택 사항)
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+# 설치 후 추가 설정
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end
