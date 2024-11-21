@@ -1,82 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 void main() async {
-  // Firebase 초기화가 필요한 경우 WidgetsFlutterBinding.ensureInitialized()를 호출해야 함
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Firebase 초기화
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Firebase Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Firebase Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-}
-
-//인증ui
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-void main() {
+  await Firebase.initializeApp();
   runApp(MyApp());
 }
 
@@ -84,80 +15,77 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Firebase Authentication',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: AuthPage(),
+      title: 'Flutter Firebase Example',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: AuthenticationWrapper(),
     );
   }
 }
 
-class AuthPage extends StatefulWidget {
+class AuthenticationWrapper extends StatelessWidget {
   @override
-  _AuthPageState createState() => _AuthPageState();
+  Widget build(BuildContext context) {
+    // Firebase Authentication 상태에 따라 로그인 화면 또는 메인 화면으로 이동
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.active) {
+          if (snapshot.hasData) {
+            return MainScreen(); // 로그인된 사용자는 메인 화면으로
+          } else {
+            return LoginScreen(); // 로그인되지 않은 사용자는 로그인 화면으로
+          }
+        }
+        return CircularProgressIndicator(); // 로딩 중일 때
+      },
+    );
+  }
 }
 
-class _AuthPageState extends State<AuthPage> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+// 로그인 화면
+class LoginScreen extends StatefulWidget {
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> _signInWithEmailPassword() async {
+  Future<void> _login() async {
     try {
       await _auth.signInWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+          email: _emailController.text, password: _passwordController.text);
+    } catch (e) {
+      print("Login error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('로그인에 실패했습니다.')),
       );
-      // 로그인 성공 후 처리할 코드
-    } on FirebaseAuthException catch (e) {
-      // 에러 처리
-      print('Error: ${e.message}');
-    }
-  }
-
-  Future<void> _signUpWithEmailPassword() async {
-    try {
-      await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-      // 회원가입 성공 후 처리할 코드
-    } on FirebaseAuthException catch (e) {
-      // 에러 처리
-      print('Error: ${e.message}');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Firebase Authentication')),
+      appBar: AppBar(title: Text("로그인")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             TextField(
               controller: _emailController,
-              decoration: InputDecoration(labelText: 'Email'),
+              decoration: InputDecoration(labelText: '이메일'),
             ),
             TextField(
               controller: _passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
               obscureText: true,
+              decoration: InputDecoration(labelText: '비밀번호'),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: _signInWithEmailPassword,
-                  child: Text('Sign In'),
-                ),
-                ElevatedButton(
-                  onPressed: _signUpWithEmailPassword,
-                  child: Text('Sign Up'),
-                ),
-              ],
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _login,
+              child: Text("로그인"),
             ),
           ],
         ),
@@ -166,209 +94,83 @@ class _AuthPageState extends State<AuthPage> {
   }
 }
 
-
-//데이터베이스 ui
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Firestore Example',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: FirestorePage(),
-    );
-  }
-}
-
-class FirestorePage extends StatefulWidget {
-  @override
-  _FirestorePageState createState() => _FirestorePageState();
-}
-
-class _FirestorePageState extends State<FirestorePage> {
-  final _nameController = TextEditingController();
+// 메인 화면
+class MainScreen extends StatelessWidget {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<void> _addName() async {
-    await _firestore.collection('users').add({
-      'name': _nameController.text,
-    });
-  }
-
-  Future<void> _getNames() async {
-    final snapshot = await _firestore.collection('users').get();
-    for (var doc in snapshot.docs) {
-      print(doc['name']);
-    }
+  Future<void> _logout() async {
+    await _auth.signOut();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Firestore Example')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(labelText: 'Enter your name'),
+      appBar: AppBar(
+        title: Text("홈"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.exit_to_app),
+            onPressed: _logout,
+          )
+        ],
+      ),
+      body: Column(
+        children: [
+          // Firestore에서 데이터 가져오기
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _firestore.collection('items').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('오류가 발생했습니다.'));
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(child: Text('데이터가 없습니다.'));
+                }
+
+                var items = snapshot.data!.docs;
+                return ListView.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      title: Text(items[index]['name']),
+                    );
+                  },
+                );
+              },
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: _addName,
-                  child: Text('Add Name'),
-                ),
-                ElevatedButton(
-                  onPressed: _getNames,
-                  child: Text('Get Names'),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-//푸시알림 ui
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Push Notifications Example',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: PushNotificationPage(),
-    );
+// Firebase Messaging 설정
+class FirebaseNotificationService {
+  static Future<void> _firebaseMessagingBackgroundHandler(
+      RemoteMessage message) async {
+    print("백그라운드 메시지: ${message.notification?.title}");
   }
-}
 
-class PushNotificationPage extends StatefulWidget {
-  @override
-  _PushNotificationPageState createState() => _PushNotificationPageState();
-}
+  static Future<void> initialize() async {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-class _PushNotificationPageState extends State<PushNotificationPage> {
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-
-  @override
-  void initState() {
-    super.initState();
-    _firebaseMessaging.requestPermission();
+    // 포그라운드에서 메시지를 수신
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      // 알림 수신 시 처리할 코드
-      print('Message received: ${message.notification?.title}');
+      print("포그라운드 메시지: ${message.notification?.title}");
     });
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Push Notifications Example')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            // 알림 권한 요청 및 설정
-            await _firebaseMessaging.requestPermission();
-          },
-          child: Text('Enable Notifications'),
-        ),
-      ),
-    );
+    // Firebase Messaging 인스턴스 가져오기
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // 푸시 알림 권한 요청
+    NotificationSettings settings = await messaging.requestPermission();
+    print('푸시 알림 권한: ${settings.authorizationStatus}');
   }
 }
 
-//파일업로드 ui
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Firebase Storage Example',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: StoragePage(),
-    );
-  }
-}
-
-class StoragePage extends StatefulWidget {
-  @override
-  _StoragePageState createState() => _StoragePageState();
-}
-
-class _StoragePageState extends State<StoragePage> {
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final ImagePicker _picker = ImagePicker();
-  File? _image;
-
-  Future<void> _uploadImage() async {
-    if (_image == null) return;
-    try {
-      await _storage.ref('uploads/${_image?.path.split('/').last}').putFile(_image!);
-      print('File uploaded successfully');
-    } catch (e) {
-      print('Error uploading file: $e');
-    }
-  }
-
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Firebase Storage Example')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: _pickImage,
-              child: Text('Pick an Image'),
-            ),
-            ElevatedButton(
-              onPressed: _uploadImage,
-              child: Text('Upload Image'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
